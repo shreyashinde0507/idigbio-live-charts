@@ -7,9 +7,15 @@ import matplotlib.pyplot as plt
 import datetime
 import json
 from plotly import graph_objects as go  # optional, for interactive extensions
+from matplotlib.ticker import LogLocator, NullFormatter, NullLocator
+
+import numpy as np
+import pandas as pd
+import requests
+import matplotlib.pyplot as plt
 
 def fetch_monthly_usage(recordset, min_date):
-    """Pull month‑by‑month stats from iDigBio."""
+    """Fetch month-by-month metrics from iDigBio."""
     url = "https://search.idigbio.org/v2/summary/stats/search"
     body = {
         "dateInterval": "month",
@@ -18,29 +24,66 @@ def fetch_monthly_usage(recordset, min_date):
     }
     r = requests.post(url, json=body)
     r.raise_for_status()
-    js = r.json()["dates"]
+
     rows = []
-    for dt, rec in js.items():
-        metrics = rec.get(recordset, {})
+    for dt, recs in r.json()["dates"].items():
+        metrics = recs.get(recordset, {})
         row = {"Date": pd.to_datetime(dt)}
         row.update(metrics)
         rows.append(row)
+
     return pd.DataFrame(rows).sort_values("Date")
 
-def plot_usage(df, outpath):
-    """Plot search_count & download_count over time and save a PNG."""
-    plt.figure(figsize=(8,4))
-    plt.plot(df["Date"], df.get("search_count",0), 'o-', label="search_count")
-    plt.plot(df["Date"], df.get("download_count",0), 'o-', label="download_count")
-    plt.title("Monthly Usage")
-    plt.xlabel("Date")
-    plt.ylabel("Count")
-    plt.legend()
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    plt.savefig(outpath)
-    plt.close()
 
+def plot_usage_bar(df, outpath):
+    """
+    Draw a grouped bar chart of search_count vs download (records downloaded) by month,
+    and label only the download bars with their numeric value.
+    """
+    labels = df['Date'].dt.strftime("%Y-%m")
+    x      = np.arange(len(labels))
+    width  = 0.4
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    # Plot the two bar series
+    bars_search = ax.bar(x - width/2, df['search'],   width,
+                         label="Search Events",     color='C0', alpha=0.8)
+    bars_download = ax.bar(x + width/2, df['download'], width,
+                           label="Records Downloaded", color='C1', alpha=0.8)
+
+    # Put the y-axis on a log scale and only show 10⁰,10¹,10²… ticks
+    ax.set_yscale('log')
+    ax.yaxis.set_major_locator(LogLocator(base=10))
+    ax.yaxis.set_minor_locator(NullLocator())     # disable minor ticks
+    ax.yaxis.set_minor_formatter(NullFormatter())
+    ax.set_ylim(1, df[['search','download']].values.max() * 1.2)
+
+    # ─── Annotate only the download bars ─────────────────────────────────────
+    for bar in bars_download:
+        h = bar.get_height()
+        ax.text(
+            bar.get_x() + bar.get_width()/2,  # center of the bar
+            h / 2,                            # halfway up the bar
+            f"{int(h):,}",                    # e.g. "7,391,834"
+            ha='center', va='center',
+            color='white', fontsize=8,
+            rotation=0
+        )
+    # ─────────────────────────────────────────────────────────────────────────
+
+    # Show only every 2nd month label to avoid overlap
+    skip = 2
+    ax.set_xticks(x[::skip])
+    ax.set_xticklabels(labels[::skip], rotation=45, ha='right')
+
+    ax.set_ylabel("Count")
+    ax.set_title("Monthly Usage (Search vs Download)")
+    ax.legend(loc='upper left')
+
+    plt.tight_layout()
+    plt.savefig(outpath, dpi=150)
+    plt.close()
 def fetch_ingest_stats(recordset, min_date, max_date):
     """Pull annual ingestion (records/media) from iDigBio."""
     url = "https://search.idigbio.org/v2/summary/stats/api/"
@@ -182,7 +225,7 @@ def main():
     )
     parser.add_argument(
         "--out-dir",
-        default="docs/charts",
+        default="public/charts",
         help="Directory to save generated charts"
     )
     args = parser.parse_args()
@@ -192,7 +235,7 @@ def main():
 
     # 1) Monthly usage
     df_month = fetch_monthly_usage(args.recordset, args.monthly_min_date)
-    plot_usage(df_month, os.path.join(args.out_dir, "usage_monthly.png"))
+    plot_usage_bar(df_month, os.path.join(args.out_dir, "usage_monthly.png"))
 
     # 2) Annual ingestion metrics
     df_ing = fetch_ingest_stats(
