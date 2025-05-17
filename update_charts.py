@@ -225,7 +225,7 @@ def main():
     )
     parser.add_argument(
         "--out-dir",
-        default="public/charts",
+        default="docs/charts",
         help="Directory to save generated charts"
     )
     args = parser.parse_args()
