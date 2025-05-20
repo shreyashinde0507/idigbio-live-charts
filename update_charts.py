@@ -156,7 +156,7 @@ def plot_search_vs_download(df, outpath):
 
 def plot_usage_vs_viewed(df, outpath):
     """Plot downloaded vs viewed_records vs viewed_media."""
-    sub = df[df["Metric"].isin(["download_count","viewed_records","viewed_media"])]
+    sub = df[df["Metric"].isin(["download_count","viewed_records"])]
     plt.figure(figsize=(8,4))
     style = {
         "download_count": 'o-',
