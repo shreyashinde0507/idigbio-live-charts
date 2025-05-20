@@ -73,8 +73,9 @@ def plot_usage_bar(df, outpath):
     plt.tight_layout()
     plt.savefig(outpath, dpi=150)
     plt.close()
+    
 def fetch_ingest_stats(recordset, min_date, max_date):
-    """Pull annual ingestion (records/media) from iDigBio."""
+    """Pull annual ingestion (records only) from iDigBio—skip mediarecords."""
     url = "https://search.idigbio.org/v2/summary/stats/api/"
     params = {
         "dateInterval": "year",
@@ -85,22 +86,26 @@ def fetch_ingest_stats(recordset, min_date, max_date):
     r = requests.get(url, params=params)
     r.raise_for_status()
     js = r.json()["dates"]
+
     rows = []
     for dt, rec in js.items():
-        m = rec.get(recordset, {})
-        for metric, cnt in m.items():
+        metrics = rec.get(recordset, {})
+        # only include the 'records' metric
+        if 'records' in metrics:
             rows.append({
                 "Date":   pd.to_datetime(dt),
-                "Metric": metric,
-                "Count":  cnt
+                "Metric": 'records',
+                "Count":  metrics['records']
             })
     return pd.DataFrame(rows)
 
+
 def plot_ingest_stats(df, outpath):
-    """Plot each ingestion metric on a log‑scaled line chart."""
-    plt.figure(figsize=(8,4))
-    for metric, grp in df.groupby("Metric"):
-        plt.plot(grp["Date"], grp["Count"], 'o-', label=metric)
+    """Plot annual 'records' ingestion on a log‑scaled line chart."""
+    df = df[df["Metric"] == "records"]
+
+    plt.figure(figsize=(8, 4))
+    plt.plot(df["Date"], df["Count"], 'o-', label="records", color='C1')
     plt.yscale("log")
     plt.title("Data Ingestion Metrics (annual)")
     plt.xlabel("Date")
@@ -109,6 +114,7 @@ def plot_ingest_stats(df, outpath):
     plt.tight_layout()
     plt.savefig(outpath)
     plt.close()
+
 
 def fetch_use_stats(recordset, min_date, max_date):
     """Pull annual usage (search/download/view) from iDigBio."""
