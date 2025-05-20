@@ -71,7 +71,7 @@ def plot_usage_bar(df, outpath):
     ax.legend(loc='upper left')
 
     plt.tight_layout()
-    plt.savefig(outpath, dpi=150)
+    plt.savefig(outpath, dpi=300)
     plt.close()
     
 def fetch_ingest_stats(recordset, min_date, max_date):
@@ -139,40 +139,6 @@ def fetch_use_stats(recordset, min_date, max_date):
             })
     return pd.DataFrame(rows)
 
-def plot_search_vs_download(df, outpath):
-    """Plot search_count vs download_count on a log‑scale chart."""
-    sub = df[df["Metric"].isin(["search_count","download_count"])]
-    plt.figure(figsize=(8,4))
-    for metric, grp in sub.groupby("Metric"):
-        plt.plot(grp["Date"], grp["Count"], 'o-', label=metric)
-    plt.yscale("log")
-    plt.title("Search Events vs Download Events (annual)")
-    plt.xlabel("Date")
-    plt.ylabel("Count")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(outpath)
-    plt.close()
-
-def plot_usage_vs_viewed(df, outpath):
-    """Plot downloaded vs viewed_records vs viewed_media."""
-    sub = df[df["Metric"].isin(["download_count","viewed_records"])]
-    plt.figure(figsize=(8,4))
-    style = {
-        "download_count": 'o-',
-        "viewed_records": 's--',
-    }
-    for metric, grp in sub.groupby("Metric"):
-        plt.plot(grp["Date"], grp["Count"], style.get(metric,'o-'), label=metric)
-    plt.yscale("log")
-    plt.title("Downloaded vs Viewed (annual)")
-    plt.xlabel("Date")
-    plt.ylabel("Count")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(outpath)
-    plt.close()
-
 def plot_ratios(df, outpath):
     """Compute & plot download/download_count, download/search_count, viewed_records/search_count."""
     w = df.pivot(index="Date", columns="Metric", values="Count").fillna(0)
@@ -191,6 +157,56 @@ def plot_ratios(df, outpath):
     plt.legend()
     plt.tight_layout()
     plt.savefig(outpath)
+    plt.close()
+
+def plot_annual_summary(df, outpath):
+    """
+    Draw a grouped bar chart showing for each year:
+      • search  (all search events)
+      • download (all records downloaded)
+      • seen     (all “seen” events)
+      • viewed_records (all records viewed)
+    """
+    # 1) Prepare a year‐indexed pivot table
+    df2 = df.copy()
+    df2['Year'] = df2['Date'].dt.year
+    # pick only our four metrics
+    metrics = ['search', 'download', 'seen', 'viewed_records']
+    df2 = df2[df2['Metric'].isin(metrics)]
+    pivot = df2.pivot_table(
+        index='Year', columns='Metric', values='Count', aggfunc='sum'
+    ).fillna(0)
+
+    years = pivot.index.to_list()
+    x = np.arange(len(years))
+    width = 0.20
+
+    # 2) Plot bars
+    fig, ax = plt.subplots(figsize=(10,6))
+    bar_containers = []
+    for i, metric in enumerate(metrics):
+        bar = ax.bar(
+            x + (i - 1.5) * width,    # center the 4 bars around each tick
+            pivot[metric],
+            width,
+            label=metric.replace('_',' ').title()
+        )
+        bar_containers.append(bar)
+
+    # 3) Labels, legend, etc.
+    ax.set_xticks(x)
+    ax.set_xticklabels(years, rotation=45)
+
+    # --- add log scale + thousand-separator formatting:
+    ax.set_yscale('log')
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: f"{int(y):,}"))
+
+    ax.set_ylabel("Count")
+    ax.set_title("Annual Activity Summary")
+    ax.legend(ncol=2, loc='upper left', bbox_to_anchor=(0,1.1))
+
+    plt.tight_layout()
+    plt.savefig(outpath, dpi=300)
     plt.close()
 
 def main():
@@ -239,19 +255,20 @@ def main():
     )
     plot_ingest_stats(df_ing, os.path.join(args.out_dir, "ingest_metrics.png"))
 
-    # 3) Annual search vs download
+    # 5) Annual usage ratios
     df_use = fetch_use_stats(
         args.recordset,
         args.overall_min_date,
         args.max_date
     )
-    plot_search_vs_download(df_use, os.path.join(args.out_dir, "search_download.png"))
-
-    # 4) Annual downloaded vs viewed
-    plot_usage_vs_viewed(df_use, os.path.join(args.out_dir, "usage_vs_viewed.png"))
-
-    # 5) Annual usage ratios
     plot_ratios(df_use, os.path.join(args.out_dir, "usage_ratios.png"))
+
+    # 6) Annual summary of four key metrics
+    plot_annual_summary(
+        df_use,
+        os.path.join(args.out_dir, "annual_summary.png")
+    )
+
 
     print(f"✅ All charts generated in {args.out_dir}")
 
