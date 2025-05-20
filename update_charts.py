@@ -59,17 +59,6 @@ def plot_usage_bar(df, outpath):
     ax.yaxis.set_minor_formatter(NullFormatter())
     ax.set_ylim(1, df[['search','download']].values.max() * 1.2)
 
-    # ─── Annotate only the download bars ─────────────────────────────────────
-    for bar in bars_download:
-        h = bar.get_height()
-        ax.text(
-            bar.get_x() + bar.get_width()/2,  # center of the bar
-            h / 2,                            # halfway up the bar
-            f"{int(h):,}",                    # e.g. "7,391,834"
-            ha='center', va='center',
-            color='white', fontsize=8,
-            rotation=0
-        )
     # ─────────────────────────────────────────────────────────────────────────
 
     # Show only every 2nd month label to avoid overlap
