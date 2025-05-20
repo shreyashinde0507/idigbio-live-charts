@@ -161,7 +161,6 @@ def plot_usage_vs_viewed(df, outpath):
     style = {
         "download_count": 'o-',
         "viewed_records": 's--',
-        "viewed_media": 'x-.'
     }
     for metric, grp in sub.groupby("Metric"):
         plt.plot(grp["Date"], grp["Count"], style.get(metric,'o-'), label=metric)
